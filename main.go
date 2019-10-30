@@ -9,12 +9,14 @@ import (
 
 func main() {
 	// Create a new document with the default configuration:
-	doc, err := prose.NewDocument("This was taken during the Easter celebrations at Real de Catorce, MX.")
+	sentence := "This was taken during the Easter celebrations at Real de Catorce, MX."
+	doc, err := prose.NewDocument(sentence)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Iterate over the doc's tokens:
+	fmt.Println(sentence)
 	for _, tok := range doc.Tokens() {
 		fmt.Println(tok.Text, tok.Tag, tok.Label)
 		// Go NNP B-GPE
@@ -22,6 +24,7 @@ func main() {
 		// an DT O
 		// ...
 	}
+
 	fmt.Println("Entities")
 	// Iterate over the doc's named-entities:
 	for _, ent := range doc.Entities() {
