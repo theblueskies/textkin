@@ -3,6 +3,8 @@ package jaccard
 import (
 	"testing"
 
+	"github.com/aaaton/golem"
+	"github.com/aaaton/golem/dicts/en"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,13 +24,17 @@ func TestGetLemma(t *testing.T) {
 }
 
 func TestBuildSets(t *testing.T) {
+	l, _ := golem.New(en.New())
 	testData := []struct {
 		j       JaccardSim
 		primary string
 		output  map[string]bool
 	}{
 		{
-			JaccardSim{PrimaryText: "concludes tests was lemmas Jaccard needs"},
+			JaccardSim{
+				PrimaryText:       "concludes tests was lemmas Jaccard needs",
+				primaryLemmatizer: l,
+			},
 			PrimaryStringKey,
 			map[string]bool{
 				"conclude": true,
@@ -40,7 +46,10 @@ func TestBuildSets(t *testing.T) {
 			},
 		},
 		{
-			JaccardSim{SecondaryText: "concludes tests was lemmas Jaccard needs"},
+			JaccardSim{
+				SecondaryText:       "concludes tests was lemmas Jaccard needs",
+				secondaryLemmatizer: l,
+			},
 			SecondaryStringKey,
 			map[string]bool{
 				"conclude": true,
@@ -62,7 +71,8 @@ func TestBuildSets(t *testing.T) {
 }
 
 func TestBuildSetEmptyString(t *testing.T) {
-	j := JaccardSim{}
+	l, _ := golem.New(en.New())
+	j := JaccardSim{primaryLemmatizer: l}
 	set, err := j.buildSet(PrimaryStringKey)
 	expectedMap := make(map[string]bool)
 
@@ -76,4 +86,15 @@ func TestBuildSetBadPositionError(t *testing.T) {
 
 	assert.NotNil(t, err)
 	assert.Nil(t, set)
+}
+
+func TestNewJaccardSim(t *testing.T) {
+	j := NewJaccardSim("some text", "random text")
+
+	assert.Equal(t, "some text", j.PrimaryText)
+	assert.Equal(t, "random text", j.SecondaryText)
+	assert.NotNil(t, j.primaryLemmatizer)
+	assert.NotNil(t, j.secondaryLemmatizer)
+	assert.Nil(t, j.primarySet)
+	assert.Nil(t, j.secondarySet)
 }

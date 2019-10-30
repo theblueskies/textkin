@@ -23,10 +23,30 @@ const (
 
 // JaccardSim computes the Jaccard Similarity of two texts
 type JaccardSim struct {
-	PrimaryText   string          // Store primary text
-	SecondaryText string          // Store text that is being compared
-	primarySet    map[string]bool // Set of lemmas from primaryText
-	secondarySet  map[string]bool // Set of lemmas from secondaryText
+	PrimaryText         string          // Store primary text
+	SecondaryText       string          // Store text that is being compared
+	primarySet          map[string]bool // Set of lemmas from primaryText
+	secondarySet        map[string]bool // Set of lemmas from secondaryText
+	primaryLemmatizer   *golem.Lemmatizer
+	secondaryLemmatizer *golem.Lemmatizer
+}
+
+// NewJaccardSim returns a new instance of JaccardSim
+func NewJaccardSim(text1 string, text2 string) *JaccardSim {
+	lemmatizer1, err := golem.New(en.New())
+	if err != nil {
+		panic(err)
+	}
+	lemmatizer2, err := golem.New(en.New())
+	if err != nil {
+		panic(err)
+	}
+	return &JaccardSim{
+		PrimaryText:         text1,
+		SecondaryText:       text2,
+		primaryLemmatizer:   lemmatizer1,
+		secondaryLemmatizer: lemmatizer2,
+	}
 }
 
 // GetLemma returns the lemma of a given word
@@ -52,21 +72,35 @@ func (j *JaccardSim) buildSet(textPos string) (map[string]bool, error) {
 	if textPos != PrimaryStringKey && textPos != SecondaryStringKey {
 		return nil, errors.New("textPosition must be either primaryStringKey or secondaryStringKey")
 	}
+
+	// Set string and lemmatizer
 	s := j.PrimaryText
+	lemmatizer := j.primaryLemmatizer
 	if textPos == SecondaryStringKey {
 		s = j.SecondaryText
+		lemmatizer = j.secondaryLemmatizer
 	}
+
+	// Check if lemmatizer is nil
+	if lemmatizer == nil {
+		return nil, errors.New("Lemmatizer is nil")
+	}
+
+	// If string is empty, return
 	if s == "" {
 		return set, nil
 	}
+
 	var lemma string
 	words := strings.Fields(s)
 
+	// Build map of lemmas
 	for _, w := range words {
-		lemma = GetLemma(w)
+		lemma = lemmatizer.Lemma(w)
 		set[lemma] = true
 	}
 
+	// Assign map to corresponding set
 	if textPos == SecondaryStringKey {
 		j.secondarySet = set
 		return set, nil
