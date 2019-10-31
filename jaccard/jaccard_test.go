@@ -1,10 +1,12 @@
 package jaccard
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/aaaton/golem"
 	"github.com/aaaton/golem/dicts/en"
+	mapset "github.com/deckarep/golang-set"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,7 +30,7 @@ func TestBuildSets(t *testing.T) {
 	testData := []struct {
 		j       JaccardSim
 		primary string
-		output  map[string]bool
+		output  mapset.Set
 	}{
 		{
 			JaccardSim{
@@ -36,14 +38,9 @@ func TestBuildSets(t *testing.T) {
 				primaryLemmatizer: l,
 			},
 			PrimaryStringKey,
-			map[string]bool{
-				"conclude": true,
-				"need":     true,
-				"test":     true,
-				"be":       true,
-				"lemmas":   true,
-				"Jaccard":  true,
-			},
+			mapset.NewSetFromSlice([]interface{}{
+				"conclude", "need", "test", "be", "lemmas", "Jaccard",
+			}),
 		},
 		{
 			JaccardSim{
@@ -51,38 +48,38 @@ func TestBuildSets(t *testing.T) {
 				secondaryLemmatizer: l,
 			},
 			SecondaryStringKey,
-			map[string]bool{
-				"conclude": true,
-				"need":     true,
-				"test":     true,
-				"be":       true,
-				"lemmas":   true,
-				"Jaccard":  true,
-			},
+			mapset.NewSetFromSlice([]interface{}{
+				"conclude", "need", "test", "be", "lemmas", "Jaccard",
+			}),
 		},
 	}
+	var wg sync.WaitGroup
 	for _, tt := range testData {
 		jc := tt.j
-		set, err := jc.buildSet(tt.primary)
+		wg.Add(1)
+		set, err := jc.buildSet(&wg, tt.primary)
 		assert.Nil(t, err)
-		assert.NotNil(t, set)
+		assert.Greater(t, set.Cardinality(), 0)
 		assert.Equal(t, tt.output, set)
 	}
 }
 
 func TestBuildSetEmptyString(t *testing.T) {
 	l, _ := golem.New(en.New())
+	var wg sync.WaitGroup
+	wg.Add(1)
 	j := JaccardSim{primaryLemmatizer: l}
-	set, err := j.buildSet(PrimaryStringKey)
-	expectedMap := make(map[string]bool)
+	set, err := j.buildSet(&wg, PrimaryStringKey)
 
 	assert.Nil(t, err)
-	assert.Equal(t, expectedMap, set)
+	assert.Equal(t, mapset.NewSet(), set)
 }
 
 func TestBuildSetBadPositionError(t *testing.T) {
 	j := JaccardSim{}
-	set, err := j.buildSet("IncorrectPositionKey")
+	var wg sync.WaitGroup
+	wg.Add(1)
+	set, err := j.buildSet(&wg, "IncorrectPositionKey")
 
 	assert.NotNil(t, err)
 	assert.Nil(t, set)
@@ -97,4 +94,8 @@ func TestNewJaccardSim(t *testing.T) {
 	assert.NotNil(t, j.secondaryLemmatizer)
 	assert.Nil(t, j.primarySet)
 	assert.Nil(t, j.secondarySet)
+
+	// Test Jaccard confidencce
+	confidence := j.GetConfidence()
+	assert.Equal(t, 0.3333333333333333, confidence)
 }

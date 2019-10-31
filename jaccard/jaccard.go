@@ -3,9 +3,11 @@ package jaccard
 import (
 	"errors"
 	"strings"
+	"sync"
 
 	"github.com/aaaton/golem"
 	"github.com/aaaton/golem/dicts/en"
+	mapset "github.com/deckarep/golang-set"
 )
 
 const (
@@ -23,10 +25,10 @@ const (
 
 // JaccardSim computes the Jaccard Similarity of two texts
 type JaccardSim struct {
-	PrimaryText         string          // Store primary text
-	SecondaryText       string          // Store text that is being compared
-	primarySet          map[string]bool // Set of lemmas from primaryText
-	secondarySet        map[string]bool // Set of lemmas from secondaryText
+	PrimaryText         string     // Store primary text
+	SecondaryText       string     // Store text that is being compared
+	primarySet          mapset.Set // Set of lemmas from primaryText
+	secondarySet        mapset.Set // Set of lemmas from secondaryText
 	primaryLemmatizer   *golem.Lemmatizer
 	secondaryLemmatizer *golem.Lemmatizer
 }
@@ -59,15 +61,24 @@ func GetLemma(inp string) string {
 	return word
 }
 
-func (j *JaccardSim) BuildSets() error {
-	go j.buildSet(PrimaryStringKey)
-	go j.buildSet(SecondaryStringKey)
-	return nil
+func (j *JaccardSim) GetConfidence() float64 {
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go j.buildSet(&wg, PrimaryStringKey)
+	go j.buildSet(&wg, SecondaryStringKey)
+	wg.Wait()
+
+	intersection := j.primarySet.Intersect(j.secondarySet)
+	union := j.primarySet.Union(j.secondarySet)
+
+	confidence := float64(intersection.Cardinality()) / float64(union.Cardinality())
+
+	return confidence
 }
 
 // buildSet builds the sets required to calculate Jaccard Similarity coefficient
-func (j *JaccardSim) buildSet(textPos string) (map[string]bool, error) {
-	set := make(map[string]bool)
+func (j *JaccardSim) buildSet(wg *sync.WaitGroup, textPos string) (mapset.Set, error) {
+	defer wg.Done()
 
 	if textPos != PrimaryStringKey && textPos != SecondaryStringKey {
 		return nil, errors.New("textPosition must be either primaryStringKey or secondaryStringKey")
@@ -88,23 +99,25 @@ func (j *JaccardSim) buildSet(textPos string) (map[string]bool, error) {
 
 	// If string is empty, return
 	if s == "" {
-		return set, nil
+		return mapset.NewSet(), nil
 	}
 
 	var lemma string
+	set := mapset.NewSet()
 	words := strings.Fields(s)
 
 	// Build map of lemmas
 	for _, w := range words {
 		lemma = lemmatizer.Lemma(w)
-		set[lemma] = true
+		set.Add(lemma)
 	}
 
-	// Assign map to corresponding set
+	// Assign set to corresponding attribute
 	if textPos == SecondaryStringKey {
 		j.secondarySet = set
-		return set, nil
+	} else {
+		j.primarySet = set
 	}
-	j.primarySet = set
+
 	return set, nil
 }
